@@ -218,6 +218,14 @@ class UDisksBlockDevice {
     return objectPath != null ? _client._getBlockDevice(objectPath) : null;
   }
 
+  UDisksFilesystem? get filesystem {
+    if (_object.interfaces['org.freedesktop.UDisks2.Filesystem'] == null) {
+      return null;
+    }
+
+    return UDisksFilesystem(_object);
+  }
+
   /// The special device file for the block device e.g. '/dev/sda2'.
   List<int> get device =>
       _object.getByteArrayProperty(_blockInterfaceName, 'Device') ?? [];
@@ -456,6 +464,97 @@ class UDisksBlockDevice {
         _blockInterfaceName, 'Rescan', [DBusDict.stringVariant(options)],
         replySignature: DBusSignature(''));
   }
+}
+
+class UDisksFilesystem {
+  final _UDisksObject _object;
+  final String _filesystemInterfaceName = 'org.freedesktop.UDisks2.Filesystem';
+
+  /// Checks for filesystem errors. Returns true if the filesystem doesn't have any.
+  Future<bool> check() async {
+    var options = <String, DBusValue>{};
+    final response = await _object.callMethod(
+        _filesystemInterfaceName, 'Check', [DBusDict.stringVariant(options)],
+        replySignature: DBusSignature.boolean);
+
+    return response.returnValues[0].asBoolean();
+  }
+
+  /// Tries to mount the filesystem. Returns the mount point path.
+  Future<String> mount() async {
+    var options = <String, DBusValue>{};
+    final response = await _object.callMethod(
+        _filesystemInterfaceName, 'Mount', [DBusDict.stringVariant(options)],
+        replySignature: DBusSignature.string);
+
+    return response.returnValues[0].asString();
+  }
+
+  /// Repairs the filesystem. Returns true if the repair has been successful.
+  Future<bool> repair() async {
+    var options = <String, DBusValue>{};
+    final response = await _object.callMethod(
+        _filesystemInterfaceName, 'Repair', [DBusDict.stringVariant(options)],
+        replySignature: DBusSignature.boolean);
+
+    return response.returnValues[0].asBoolean();
+  }
+
+  /// Resizes the filesystem to be [size] bytes.
+  Future<void> resize(int size) async {
+    var options = <String, DBusValue>{};
+    await _object.callMethod(_filesystemInterfaceName, 'Resize',
+        [DBusUint64(size), DBusDict.stringVariant(options)],
+        replySignature: DBusSignature(''));
+  }
+
+  /// Sets the filesystem to have [label] as its name.
+  Future<void> setLabel(String label) async {
+    var options = <String, DBusValue>{};
+    await _object.callMethod(_filesystemInterfaceName, 'SetLabel',
+        [DBusString(label), DBusDict.stringVariant(options)],
+        replySignature: DBusSignature(''));
+  }
+
+  Future<void> takeOwnership() async {
+    var options = <String, DBusValue>{};
+    await _object.callMethod(_filesystemInterfaceName, 'TakeOwnership',
+        [DBusDict.stringVariant(options)],
+        replySignature: DBusSignature(''));
+  }
+
+  /// Unmounts the filesystem.
+  Future<void> unmount() async {
+    var options = <String, DBusValue>{};
+    await _object.callMethod(
+        _filesystemInterfaceName, 'Unmount', [DBusDict.stringVariant(options)],
+        replySignature: DBusSignature(''));
+  }
+
+  /// The mountpoints this filesystem is accessible from, returned as a byte array
+  /// of utf8 encoded strings.
+  List<List<int>> get mountPoints {
+    var value =
+        _object.getCachedProperty(_filesystemInterfaceName, 'MountPoints');
+    if (value == null) {
+      return [];
+    }
+    if (value.signature != DBusSignature('aay')) {
+      return [];
+    }
+    List<int> parseByteArray(DBusArray v) =>
+        v.children.map((e) => (e as DBusByte).value).toList();
+    return (value as DBusArray)
+        .children
+        .map((e) => parseByteArray(e as DBusArray))
+        .toList();
+  }
+
+  /// The size of the filesystem in bytes.
+  int get size =>
+      _object.getUint64Property(_filesystemInterfaceName, 'Size') ?? 0;
+
+  UDisksFilesystem(this._object);
 }
 
 class _UDisksManager {
